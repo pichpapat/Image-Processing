@@ -1,0 +1,1022 @@
+import mediapipe as mp
+import numpy as np
+import cv2 as cv
+from datetime import datetime
+import time
+import os
+
+mp_drawing = mp.solutions.drawing_utils
+mp_hands = mp.solutions.hands
+mp_drawing_styles = mp.solutions.drawing_styles
+
+mp_pose = mp.solutions.pose
+mp_drawing_styles = mp.solutions.drawing_styles
+
+
+folder = "Stretch"
+sunList = os.listdir(folder)
+overSunList = []
+for imPath in sunList:
+    img = cv.imread(f'{folder}/{imPath}')
+    overSunList.append(img)
+
+
+cap = cv.VideoCapture(0)
+cap.set(cv.CAP_PROP_FRAME_WIDTH,1280)
+cap.set(cv.CAP_PROP_FRAME_HEIGHT,720)
+
+w = cap.get(cv.CAP_PROP_FRAME_WIDTH)
+h = cap.get(cv.CAP_PROP_FRAME_HEIGHT)
+
+
+#Variable to count
+counter0 = 0  
+counter1 = 0
+counter2 = 0
+counter3 = 0
+counter4 = 0
+counter5 = 0
+num = 1
+
+#stage of pose
+stage = None 
+
+def distance(x1,x2,y1,y2) :
+    distance = np.sqrt(((x2-x1)**2)+(y2-y1)**2)
+    return distance
+
+# Calculate angle from 2 landmarks
+def angle (x1,y1,x2,y2) :
+    delta = np.arccos(((y2-y1)*(-y1))/(y1*np.sqrt((x2-x1)**2 + (y2-y1)**2)))
+    degreeangle = int(180/np.pi)*delta
+    return degreeangle
+
+# Calculate angle from 3 landmarks
+def cal_angle(lm1,lm2,lm3):
+    P1 = np.array(lm1) 
+    P2 = np.array(lm2) 
+    P3 = np.array(lm3)
+    
+    P1_x, P1_y = P1[0], P1[1]
+    P2_x, P2_y = P2[0], P2[1]
+    P3_x, P3_y = P3[0], P3[1]
+    
+    #rad to deg
+    rad = np.arctan2(P3_y - P2_y, P3_x - P2_x)-np.arctan2(P1_y - P2_y, P1_x - P2_x)
+    deg = np.abs((rad * 180.0) / np.pi)
+
+    if deg>180:
+        deg = 360-deg     
+    return deg
+    
+with mp_hands.Hands(max_num_hands=2,
+                    min_detection_confidence = 0.5,
+                    min_tracking_confidence = 0.5) as hands:
+    while cap.isOpened():
+        
+        success, image = cap.read()
+        
+        if not success :
+            #print ("Please adjust your webcam")
+            
+            continue
+        
+        image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
+        image.flags.writeable = False
+        result = hands.process(image)
+        image.flags.writeable = True
+        image = cv.cvtColor(image, cv.COLOR_RGB2BGR)
+
+        thumb_x = 0
+        thumb_y = 0
+
+        index_x = 0
+        index_y = 0
+
+        middle_x = 0
+        middle_y = 0
+        
+        ring_x = 0
+        ring_y = 0
+
+        pinky_x = 0
+        pinky_y = 0    
+
+        if result.multi_hand_landmarks:
+            for hand_landmarks in result.multi_hand_landmarks:
+                mp_drawing.draw_landmarks(
+                    image,
+                    hand_landmarks,
+                    mp_hands.HAND_CONNECTIONS,
+                    mp_drawing_styles.get_default_hand_landmarks_style(),
+                    mp_drawing_styles.get_default_hand_connections_style())
+                    
+            lm = result.multi_hand_landmarks[0]
+            lmhand = mp_hands.HandLandmark
+            h = image.shape[0]
+            w = image.shape[1]
+            
+            thumb_x = int(lm.landmark[lmhand.THUMB_TIP].x * w)
+            thumb_y = int(lm.landmark[lmhand.THUMB_TIP].y * h)
+
+            index_x = int(lm.landmark[lmhand.INDEX_FINGER_TIP].x * w)
+            index_y = int(lm.landmark[lmhand.INDEX_FINGER_TIP].y * h)
+
+            middle_x = int(lm.landmark[lmhand.MIDDLE_FINGER_TIP].x * w)
+            middle_y = int(lm.landmark[lmhand.MIDDLE_FINGER_TIP].y * h)
+        
+            ring_x = int(lm.landmark[lmhand.RING_FINGER_TIP].x * w)
+            ring_y = int(lm.landmark[lmhand.RING_FINGER_TIP].y * h)
+
+            pinky_x = int(lm.landmark[lmhand.PINKY_TIP].x * w)
+            pinky_y = int(lm.landmark[lmhand.PINKY_TIP].y * h)
+         
+        # #print(middle_y)
+        image = cv.flip(image,1)
+        cv.putText(image, 'Do "OK" hand sign to start stretching', (200,600), cv.FONT_HERSHEY_PLAIN,
+                            3, (255, 255, 255), 5)
+        cv.imshow('KeepFit', image)
+        if cv.waitKey(1) & (middle_y < thumb_y)  and (middle_y < index_y) and (ring_y < thumb_y) and (ring_y < index_y) and (pinky_y < thumb_y) and (pinky_y < index_y) :
+            if distance(thumb_x,index_x,thumb_y,index_y) < 30 :
+                break
+
+# cv.destroyAllWindows()
+
+#########################################################################################################
+
+#WARM UP
+
+#########################################################################################################
+
+start_time = datetime.now()
+with mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5) as pose:
+
+#========================================================================================================
+
+#=======================Arm stretching===================================================================
+    t = 15
+    while cap.isOpened():
+        success, image = cap.read()
+        start_time = datetime.now()
+        
+        image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
+        image.flags.writeable = False
+        results = pose.process(image)
+
+        # Draw the pose annotation on the image.
+        image.flags.writeable = True
+        image = cv.cvtColor(image, cv.COLOR_RGB2BGR)
+        mp_drawing.draw_landmarks(
+            image,
+            results.pose_landmarks,
+            mp_pose.POSE_CONNECTIONS,
+            landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style())
+
+        if t > 0 :
+            now_time = datetime.now()
+            timediff = (now_time - start_time).total_seconds()
+            t = t - timediff
+            word = str(round(t))
+            # #print(t)
+            start_time = datetime.now()
+                
+
+        else :
+            now_time = datetime.now()
+            timediff = (now_time - start_time).total_seconds()
+            t = t - timediff
+            word = str(round(0))
+            # #print(t)
+        image = cv.flip(image,1)
+
+        lm = results.pose_landmarks
+        lmpose = mp_pose.PoseLandmark
+
+        right_shoulder_x = int(lm.landmark[lmpose.RIGHT_SHOULDER].x *w)
+        right_shoulder_y = int(lm.landmark[lmpose.RIGHT_SHOULDER].y * h)
+
+        right_wrist_x = int(lm.landmark[lmpose.RIGHT_WRIST].x *w)
+        right_wrist_y = int(lm.landmark[lmpose.RIGHT_WRIST].y *h)
+
+        left_shoulder_x = int(lm.landmark[lmpose.LEFT_SHOULDER].x * w)
+        left_shoulder_y = int(lm.landmark[lmpose.LEFT_SHOULDER].y *h)
+
+        left_wrist_x = int(lm.landmark[lmpose.LEFT_WRIST].x*w)
+        left_wrist_y = int(lm.landmark[lmpose.LEFT_WRIST].y *h)
+
+        angle_right = angle(right_shoulder_x,right_shoulder_y,right_wrist_x,right_wrist_y)
+        angle_left = angle(left_shoulder_x,left_shoulder_y,left_wrist_x,left_wrist_y)
+
+        if angle_left > 70:
+            if angle_right < 45 :
+                cv.putText(image, 'Great Job!', (200,600), cv.FONT_HERSHEY_PLAIN,
+                            6, (255, 255, 255), 5)
+            else:
+                cv.putText(image, 'Try again!', (200,600), cv.FONT_HERSHEY_PLAIN,
+                            6, (255, 255, 0), 5)
+                
+        elif angle_right > 70 :
+            if angle_left < 45 :
+                cv.putText(image, 'Great Job!', (200,600), cv.FONT_HERSHEY_PLAIN,
+                            6, (255, 255, 255), 5)
+            else:
+                cv.putText(image, 'Try again!', (200,600), cv.FONT_HERSHEY_PLAIN,
+                            6, (255, 255, 0), 5)
+        else:
+            cv.putText(image, 'Try again!', (200,600), cv.FONT_HERSHEY_PLAIN,
+                        6, (255, 255, 0), 5)
+
+        H, W, c = overSunList[0].shape
+
+        o = 1280-int(W)
+        image[0:H, o:1280] = overSunList[0]
+
+        cv.rectangle(image, (0, 0), (270, 73), (245, 117, 16), -1)
+        cv.rectangle(image, (0, 73), (270, 140), (78, 173, 228), -1)
+        cv.putText(image, "Timer :",(40, 60), cv.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 5, cv.LINE_AA)
+        cv.putText(image, word,(100, 130), cv.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 5, cv.LINE_AA)
+ 
+        if (t <= 0) :
+            cv.rectangle(image,(180,290),(770,400),(245, 117, 16),-1)
+            cv.putText(image, 'Switch Side', (200,375), cv.FONT_HERSHEY_SIMPLEX,
+                            3, (78, 173, 228), 10, cv.LINE_AA)
+        cv.imshow('KeepFit',image)
+        
+        if cv.waitKey(1) & ( round(t) == -2) :
+            time.sleep(1)
+            break
+
+
+    t = 15
+    while cap.isOpened():
+        success, image = cap.read()
+        start_time = datetime.now()
+        image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
+        image.flags.writeable = False
+        results = pose.process(image)
+
+                # Draw the pose annotation on the image.
+        image.flags.writeable = True
+        image = cv.cvtColor(image, cv.COLOR_RGB2BGR)
+        mp_drawing.draw_landmarks(
+            image,
+            results.pose_landmarks,
+            mp_pose.POSE_CONNECTIONS,
+            landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style())
+
+        if t > 0 :
+            now_time = datetime.now()
+            timediff = (now_time - start_time).total_seconds()
+            t = t - timediff
+            word = str(round(t))
+            ##print(t)
+            start_time = datetime.now()
+                
+
+        else :
+            now_time = datetime.now()
+            timediff = (now_time - start_time).total_seconds()
+            t = t - timediff
+            word = str(round(0))
+            ##print(t)
+        image = cv.flip(image,1)
+
+        lm = results.pose_landmarks
+        lmpose = mp_pose.PoseLandmark
+
+        right_shoulder_x = int(lm.landmark[lmpose.RIGHT_SHOULDER].x * w)
+        right_shoulder_y = int(lm.landmark[lmpose.RIGHT_SHOULDER].y * h)
+
+        right_wrist_x = int(lm.landmark[lmpose.RIGHT_WRIST].x *w)
+        right_wrist_y = int(lm.landmark[lmpose.RIGHT_WRIST].y *h)
+
+        left_shoulder_x = int(lm.landmark[lmpose.LEFT_SHOULDER].x * w)
+        left_shoulder_y = int(lm.landmark[lmpose.LEFT_SHOULDER].y *h)
+
+        left_wrist_x = int(lm.landmark[lmpose.LEFT_WRIST].x*w)
+        left_wrist_y = int(lm.landmark[lmpose.LEFT_WRIST].y *h)
+
+        angle_right = angle(right_shoulder_x,right_shoulder_y,right_wrist_x,right_wrist_y)
+        angle_left = angle(left_shoulder_x,left_shoulder_y,left_wrist_x,left_wrist_y)
+
+        if angle_left > 70:
+            if angle_right < 45 :
+                cv.putText(image, 'Great Job!', (200,600), cv.FONT_HERSHEY_PLAIN,
+                            6, (255, 255, 255), 5)
+                
+        elif angle_right > 70 :
+            if angle_left < 45 :
+                cv.putText(image, 'Great Job!', (200,600), cv.FONT_HERSHEY_PLAIN,
+                            6, (255, 255, 255), 5)
+        else:
+            cv.putText(image, 'Try again!', (200,600), cv.FONT_HERSHEY_PLAIN,
+                        6, (255, 255, 0), 5)
+
+        H, W, c = overSunList[0].shape
+
+        o = 1280-int(W)
+        image[0:H, o:1280] = overSunList[0]
+                            
+        cv.rectangle(image, (0, 0), (270, 73), (245, 117, 16), -1)
+        cv.rectangle(image, (0, 73), (270, 140), (78, 173, 228), -1)
+        cv.putText(image, "Timer :",(40, 60), cv.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 5, cv.LINE_AA)
+        cv.putText(image, word,(100, 130), cv.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 5, cv.LINE_AA)
+        if (t <= 0) : 
+            cv.rectangle(image,(180,290),(770,400),(245, 117, 16),-1)
+            cv.putText(image, 'Switch Pose', (200,375), cv.FONT_HERSHEY_SIMPLEX,
+                            3, (78, 173, 228), 10, cv.LINE_AA)
+        cv.imshow('KeepFit',image)# cv.flip(image, 1))
+        ##print('time :',t)
+        
+        if cv.waitKey(1) & ( round(t) == -2) :
+            time.sleep(1)
+            break
+        
+#===================================================================================================================================
+
+#=======================Tricept stretching=======================================================================================
+    
+    t = 15
+    while cap.isOpened():
+        success, image = cap.read()
+        start_time = datetime.now()
+        image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
+        image.flags.writeable = False
+        results = pose.process(image)
+
+                # Draw the pose annotation on the image.
+        image.flags.writeable = True
+        image = cv.cvtColor(image, cv.COLOR_RGB2BGR)
+        mp_drawing.draw_landmarks(
+            image,
+            results.pose_landmarks,
+            mp_pose.POSE_CONNECTIONS,
+            landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style())
+
+        if t > 0 :
+            now_time = datetime.now()
+            timediff = (now_time - start_time).total_seconds()
+            t = t - timediff
+            word = str(round(t))
+            ##print(t)
+            start_time = datetime.now()
+                
+
+        else :
+            now_time = datetime.now()
+            timediff = (now_time - start_time).total_seconds()
+            t = t - timediff
+            word = str(round(0))
+            ##print(t)
+        image = cv.flip(image,1)
+
+        lm = results.pose_landmarks
+        lmpose = mp_pose.PoseLandmark
+
+        right_shoulder_x = int(lm.landmark[lmpose.RIGHT_SHOULDER].x *w)
+        right_shoulder_y = int(lm.landmark[lmpose.RIGHT_SHOULDER].y * h)
+
+        right_elbow_x = int(lm.landmark[lmpose.RIGHT_ELBOW].x *w)
+        right_elbow_y = int(lm.landmark[lmpose.RIGHT_ELBOW].y *h)
+
+        left_shoulder_x = int(lm.landmark[lmpose.LEFT_SHOULDER].x * w)
+        left_shoulder_y = int(lm.landmark[lmpose.LEFT_SHOULDER].y *h)
+
+        left_elbow_x = int(lm.landmark[lmpose.LEFT_ELBOW].x*w)
+        left_elbow_y = int(lm.landmark[lmpose.LEFT_ELBOW].y *h)
+
+        angle_right = angle(right_shoulder_x,right_shoulder_y,right_elbow_x,right_elbow_y)
+        angle_left = angle(left_shoulder_x,left_shoulder_y,left_elbow_x,left_elbow_y)
+
+        if angle_right < 45 :
+            if angle_left  < 45 :
+                cv.putText(image, 'Great Job!', (200,600), cv.FONT_HERSHEY_PLAIN,
+                            6, (255, 255, 255), 5)
+
+        else:
+            cv.putText(image, 'Try again!', (200,600), cv.FONT_HERSHEY_PLAIN,
+                        6, (255, 255, 0), 5)
+            
+
+        H, W, c = overSunList[1].shape
+        o = 1280-int(W)
+        image[0:H, o:1280] = overSunList[1]
+                            
+        cv.rectangle(image, (0, 0), (270, 73), (245, 117, 16), -1)
+        cv.rectangle(image, (0, 73), (270, 140), (78, 173, 228), -1)
+        cv.putText(image, "Timer :",(40, 60), cv.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 5, cv.LINE_AA)
+        cv.putText(image, word,(100, 130), cv.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 5, cv.LINE_AA)
+        if (t <= 0) : 
+            cv.rectangle(image,(180,290),(770,400),(245, 117, 16),-1)
+            cv.putText(image, 'Switch Side', (200,375), cv.FONT_HERSHEY_SIMPLEX,
+                            3, (78, 173, 228), 10, cv.LINE_AA)
+        cv.imshow('KeepFit',image)
+        
+        if cv.waitKey(1) & ( round(t) == -2) :
+            time.sleep(1)
+            break
+    
+    t = 15
+    
+    while cap.isOpened():
+        success, image = cap.read()
+        start_time = datetime.now()
+        image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
+        image.flags.writeable = False
+        results = pose.process(image)
+
+        image.flags.writeable = True
+        image = cv.cvtColor(image, cv.COLOR_RGB2BGR)
+        mp_drawing.draw_landmarks(
+            image,
+            results.pose_landmarks,
+            mp_pose.POSE_CONNECTIONS,
+            landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style())
+
+        if t > 0 :
+            now_time = datetime.now()
+            timediff = (now_time - start_time).total_seconds()
+            t = t - timediff
+            word = str(round(t))
+            start_time = datetime.now()
+                
+        else :
+            now_time = datetime.now()
+            timediff = (now_time - start_time).total_seconds()
+            t = t - timediff
+            word = str(round(0))
+            #print(t)
+        image = cv.flip(image,1)
+
+        lm = results.pose_landmarks
+        lmpose = mp_pose.PoseLandmark
+
+        right_shoulder_x = int(lm.landmark[lmpose.RIGHT_SHOULDER].x *w)
+        right_shoulder_y = int(lm.landmark[lmpose.RIGHT_SHOULDER].y * h)
+
+        right_elbow_x = int(lm.landmark[lmpose.RIGHT_ELBOW].x *w)
+        right_elbow_y = int(lm.landmark[lmpose.RIGHT_ELBOW].y *h)
+
+        left_shoulder_x = int(lm.landmark[lmpose.LEFT_SHOULDER].x * w)
+        left_shoulder_y = int(lm.landmark[lmpose.LEFT_SHOULDER].y *h)
+
+        left_elbow_x = int(lm.landmark[lmpose.LEFT_ELBOW].x*w)
+        left_elbow_y = int(lm.landmark[lmpose.LEFT_ELBOW].y *h)
+
+        angle_right = angle(right_shoulder_x,right_shoulder_y,right_elbow_x,right_elbow_y)
+        angle_left = angle(left_shoulder_x,left_shoulder_y,left_elbow_x,left_elbow_y)
+       
+        if angle_right < 45 :
+            if angle_left  < 45 :
+                cv.putText(image, 'Great Job!', (200,600), cv.FONT_HERSHEY_PLAIN,
+                            6, (255, 255, 255), 5)
+        else:
+            cv.putText(image, 'Try again!', (200,600), cv.FONT_HERSHEY_PLAIN,
+                        6, (255, 255, 0), 5)
+        
+        H, W, c = overSunList[1].shape
+        o = 1280-int(W)
+        image[0:H, o:1280] = overSunList[1]
+        cv.rectangle(image, (0, 0), (270, 73), (245, 117, 16), -1)
+        cv.rectangle(image, (0, 73), (270, 140), (78, 173, 228), -1)
+        cv.putText(image, "Timer :",(40, 60), cv.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 5, cv.LINE_AA)
+        cv.putText(image, word,(100, 130), cv.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 5, cv.LINE_AA)
+        
+        if (t <= 0) : 
+            cv.rectangle(image,(180,290),(770,400),(245, 117, 16),-1)
+            cv.putText(image, 'Switch Pose', (200,375), cv.FONT_HERSHEY_SIMPLEX,
+                            3, (78, 173, 228), 10, cv.LINE_AA)
+        cv.imshow('KeepFit',image)
+        
+        if cv.waitKey(1) & ( round(t) == -2) :
+            time.sleep(1)
+            break
+
+#===================================================================================================================================
+
+#=======================Overhead stretching=======================================================================================
+    t = 15
+    while cap.isOpened():
+        success, image = cap.read()
+        start_time = datetime.now()
+        
+        image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
+        image.flags.writeable = False
+    
+        results = pose.process(image)
+
+        image.flags.writeable = True
+        image = cv.cvtColor(image, cv.COLOR_RGB2BGR)
+        
+        mp_drawing.draw_landmarks(
+            image,
+            results.pose_landmarks,
+            mp_pose.POSE_CONNECTIONS,
+            landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style())
+
+        if t > 0 :
+            now_time = datetime.now()
+            timediff = (now_time - start_time).total_seconds()
+            t = t - timediff
+            word = str(round(t))
+            start_time = datetime.now()
+                
+
+        else :
+            now_time = datetime.now()
+            timediff = (now_time - start_time).total_seconds()
+            t = t - timediff
+            word = str(round(0))
+        
+        image = cv.flip(image,1)
+
+        lm = results.pose_landmarks
+        lmpose = mp_pose.PoseLandmark
+
+        right_shoulder_x = int(lm.landmark[lmpose.RIGHT_SHOULDER].x *w)
+        right_shoulder_y = int(lm.landmark[lmpose.RIGHT_SHOULDER].y * h)
+
+        right_wrist_x = int(lm.landmark[lmpose.RIGHT_WRIST].x *w)
+        right_wrist_y = int(lm.landmark[lmpose.RIGHT_WRIST].y *h)
+
+        left_shoulder_x = int(lm.landmark[lmpose.LEFT_SHOULDER].x * w)
+        left_shoulder_y = int(lm.landmark[lmpose.LEFT_SHOULDER].y *h)
+
+        left_wrist_x = int(lm.landmark[lmpose.LEFT_WRIST].x*w)
+        left_wrist_y = int(lm.landmark[lmpose.LEFT_WRIST].y *h)
+
+        angle_right = angle(right_shoulder_x,right_shoulder_y,right_wrist_x,right_wrist_y)
+        angle_left = angle(left_shoulder_x,left_shoulder_y,left_wrist_x,left_wrist_y)
+
+
+        H, W, c = overSunList[2].shape
+
+        o = 1280-int(W)
+        image[0:H, o:1280] = overSunList[2]
+
+        if distance(right_wrist_x,left_wrist_x,right_wrist_y,left_wrist_y) < 120:
+            if (angle_right < 30) and (angle_left < 30):
+                cv.putText(image, 'Great Job!', (200,600), cv.FONT_HERSHEY_PLAIN,
+                            6, (255, 255, 255), 5)
+        else:
+            cv.putText(image, 'Try again!', (200,600), cv.FONT_HERSHEY_PLAIN,
+                        6, (255, 255, 0), 5)
+
+        cv.rectangle(image, (0, 0), (270, 73), (245, 117, 16), -1)
+        cv.rectangle(image, (0, 73), (270, 140), (78, 173, 228), -1)
+        cv.putText(image, "Timer :",(40, 60), cv.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 5, cv.LINE_AA)
+        cv.putText(image, word,(100, 130), cv.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 5, cv.LINE_AA)
+
+        if (t <= 0) : 
+            cv.rectangle(image,(180,290),(800,400),(245, 117, 16),-1)
+            cv.putText(image, 'End of Stretching', (200,375), cv.FONT_HERSHEY_SIMPLEX,
+                            2, (78, 173, 228), 10, cv.LINE_AA)
+        
+        cv.imshow('KeepFit',image)
+        
+        if cv.waitKey(1) & ( round(t) == -2) :
+            time.sleep(1)
+            break
+        
+#===================================================================================================================================
+
+#EXERCISE
+
+#================================================================================================================
+folder = "picture"
+myList = os.listdir(folder)
+
+overlayList = []
+for imPath in myList:
+    img = cv.imread(f'{folder}/{imPath}')
+    overlayList.append(img) 
+
+
+# Setting mediapipe 
+with mp_pose.Pose(min_detection_confidence = 0.5, min_tracking_confidence = 0.5) as pose:
+    
+    while cap.isOpened():
+                    
+        success, frame = cap.read()
+
+        # BGR to RGB
+        img = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+
+        img.flags.writeable = False
+
+        res = pose.process(img)
+        
+        img.flags.writeable = True
+        
+        # RGB to BGR
+        img = cv.cvtColor(img, cv.COLOR_RGB2BGR)
+        
+#========================================================================================================================== 
+
+#============================00 Rotating toe touches* 10===================================================================               
+        
+        if (num <= 10):
+                    
+            h, w, c = overlayList[0].shape
+            img[0:h, 980:1280] = overlayList[0]
+            
+            if (num == 1):
+                cv.rectangle(img, (390, 0), (930, 80), (255, 255, 255), -1)
+                cv.putText(img,'START EXERCISE', (400,55), cv.FONT_HERSHEY_SIMPLEX,
+                                2, (78, 173, 228), 5, cv.LINE_AA)
+                
+            try:
+                # Extract pose landmarks
+                landmarks = res.pose_landmarks.landmark
+
+                shoulder_L = [landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x,
+                            landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y]
+                ankle_R = [landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value].x,
+                          landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value].y]
+                wrist_L = [landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].x,
+                          landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].y]
+                
+                
+                shoulder_R = [landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].x,
+                            landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].y]
+                ankle_L = [landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].x,
+                          landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].y]
+                wrist_R = [landmarks[mp_pose.PoseLandmark.RIGHT_WRIST.value].x,
+                          landmarks[mp_pose.PoseLandmark.RIGHT_WRIST.value].y]
+                
+                
+                # Calculate angle
+                angle_L = cal_angle(wrist_L, shoulder_L, ankle_R) #go to R ankle
+                angle_R = cal_angle(wrist_R, shoulder_R, ankle_L)
+
+                # Counter  
+                if angle_L < 20 and angle_R > 140:
+                    stage = "RIGHT"
+                    
+                if angle_R < 20 and angle_L > 140 and stage == 'RIGHT' :
+                    stage = "LEFT"
+                    counter0 += 1
+                    num+=1
+                    
+            except:
+                pass
+            
+            cv.rectangle(img, (0, 0), (380, 80), (245, 117, 16), -1)
+            
+            cv.putText(img, str(counter0),
+                        (10, 60),
+                        cv.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 2, cv.LINE_AA)
+            cv.putText(img, '/10',
+                        (70, 60),
+                        cv.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 0), 2, cv.LINE_AA)
+            
+            # Rep ans stage 
+            cv.putText(img, 'REP', (15, 12),
+                        cv.FONT_HERSHEY_COMPLEX, 0.5, (0, 0, 0), 1, cv.LINE_AA)
+            cv.putText(img, 'STAGE', (195, 12),
+                        cv.FONT_HERSHEY_COMPLEX, 0.5, (0, 0, 0), 1, cv.LINE_AA)
+            cv.putText(img, stage, (190, 60),
+                        cv.FONT_HERSHEY_COMPLEX, 2, (255, 255, 255), 2, cv.LINE_AA)
+
+#================================================================================================================
+
+#============================01 knee high * 20===================================================================        
+        if (num > 10 and num <= 30):              
+            
+            h, w, c = overlayList[1].shape
+            img[0:h, 980:1280] = overlayList[1]
+            
+            if (num == 11):
+                cv.rectangle(img, (430, 0), (780, 80), (255, 255, 255), -1)
+                cv.putText(img,'Next Pose', (450,55), cv.FONT_HERSHEY_SIMPLEX,
+                                2, (78, 173, 228), 5, cv.LINE_AA)
+                
+            try:
+                # Extract pose landmarks
+                landmarks = res.pose_landmarks.landmark
+                
+                shoulder_L = [landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x,
+                            landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y]
+                hip_L = [landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].x,
+                        landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].y]
+                knee_L = [landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].x,
+                        landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].y]
+            
+                
+                shoulder_R = [landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].x,
+                            landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].y]
+                hip_R = [landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value].x,
+                        landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value].y]
+                knee_R = [landmarks[mp_pose.PoseLandmark.RIGHT_KNEE.value].x,
+                        landmarks[mp_pose.PoseLandmark.RIGHT_KNEE.value].y]
+            
+                
+                # Calculate angle
+                angle_L = cal_angle(shoulder_L, hip_L, knee_L) 
+                angle_R = cal_angle(shoulder_R, hip_R, knee_R) 
+                
+                # Counter 
+                if (angle_R <= 90):
+                    stage = "RIGHT"
+                    
+                if (angle_L <= 90) and stage =='RIGHT':    
+                    stage = "LEFT"
+                    counter1 +=1
+                    num +=1
+        
+            except:
+                pass
+            
+            cv.rectangle(img, (0, 0), (380, 80), (245, 117, 16), -1)
+            
+            cv.putText(img, str(counter1),
+                        (10, 60),
+                        cv.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 2, cv.LINE_AA)
+            cv.putText(img, '/20',
+                        (70, 60),
+                        cv.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 0), 2, cv.LINE_AA)
+            
+            # Rep ans stage 
+            cv.putText(img, 'REP', (15, 12),
+                        cv.FONT_HERSHEY_COMPLEX, 0.5, (0, 0, 0), 1, cv.LINE_AA)
+            cv.putText(img, 'STAGE', (190, 12),
+                        cv.FONT_HERSHEY_COMPLEX, 0.5, (0, 0, 0), 1, cv.LINE_AA)
+            cv.putText(img, stage, (185, 60),
+                        cv.FONT_HERSHEY_COMPLEX, 2, (255, 255, 255), 2, cv.LINE_AA)
+
+#==============================================================================================================
+
+#============================02 Jumping Jack * 20==============================================================    
+        if (num > 30 and num <= 50):
+            
+            h, w, c = overlayList[2].shape
+            img[0:h, 980:1280] = overlayList[2]
+            
+            if (num == 31):
+                cv.rectangle(img, (430, 0), (780, 80), (255, 255, 255), -1)
+                cv.putText(img,'Next Pose', (450,55), cv.FONT_HERSHEY_SIMPLEX,
+                                2, (78, 173, 228), 5, cv.LINE_AA)
+            
+            try:
+                # Extract pose landmarks
+                landmarks = res.pose_landmarks.landmark
+        
+                wrist_R = [landmarks[mp_pose.PoseLandmark.RIGHT_WRIST.value].x, 
+                          landmarks[mp_pose.PoseLandmark.RIGHT_WRIST.value].y]    
+                shoulder_R = [landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].x, 
+                              landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].y]
+                hip_R = [landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value].x, 
+                        landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value].y]
+                ankle_R = [landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].x, 
+                          landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].y]
+                
+                wrist_L = [landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].x, 
+                          landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].y]                
+                shoulder_L=[landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x, 
+                            landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y]
+                hip_L = [landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].x, 
+                        landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].y]
+                ankle_L = [landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].x, 
+                          landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].y]
+    
+                # Calculate angle
+                angle_up_R = cal_angle(wrist_R, shoulder_R, hip_R)
+                angle_low_R = cal_angle(shoulder_R, hip_R, ankle_R)
+                
+                angle_up_L = cal_angle(wrist_L, shoulder_L, hip_L)
+                angle_low_L = cal_angle(shoulder_L, hip_L, ankle_L)
+    
+                # Counter 
+                if angle_up_R < 30 and angle_low_R > 150 and angle_up_L < 30 and angle_low_L > 150:
+                    stage = 'DOWN'
+                
+                if stage == 'DOWN' and angle_up_R > 150 and angle_low_R < 170 and angle_up_L > 150 and angle_low_L < 170:
+                    stage = 'UP'
+                    counter2+=1
+                    num +=1 
+                
+            except:
+                pass
+            
+            cv.rectangle(img, (0, 0), (380, 80), (245, 117, 16), -1)
+            
+            cv.putText(img, str(counter2),
+                        (10, 60),
+                        cv.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 2, cv.LINE_AA)
+            cv.putText(img, '/20',
+                        (70, 60),
+                        cv.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 0), 2, cv.LINE_AA)
+            
+            # Rep ans stage 
+            cv.putText(img, 'REP', (15, 12),
+                        cv.FONT_HERSHEY_COMPLEX, 0.5, (0, 0, 0), 1, cv.LINE_AA)
+            cv.putText(img, 'STAGE', (190, 12),
+                        cv.FONT_HERSHEY_COMPLEX, 0.5, (0, 0, 0), 1, cv.LINE_AA)
+            cv.putText(img, stage, (185, 60),
+                        cv.FONT_HERSHEY_COMPLEX, 2, (255, 255, 255), 2, cv.LINE_AA)
+            
+#=======================================================================================================
+
+#============================03 Squat * 15==============================================================   
+        if (num > 50  and num <= 65):
+            
+            h, w, c = overlayList[5].shape
+            img[0:h, 980:1280] = overlayList[5]
+            
+            if (num == 51):
+                cv.rectangle(img, (430, 0), (780, 80), (255, 255, 255), -1)
+                cv.putText(img,'Next Pose', (450,55), cv.FONT_HERSHEY_SIMPLEX,
+                                2, (78, 173, 228), 5, cv.LINE_AA)
+            try:
+                # Extract pose landmarks
+                landmarks = res.pose_landmarks.landmark
+
+                hip_L = [landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].x,
+                       landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].y]
+                knee_L = [landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].x,
+                        landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].y]
+                ankle_L = [landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].x,
+                         landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].y]
+                
+                hip_R = [landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value].x,
+                       landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value].y]
+                knee_R = [landmarks[mp_pose.PoseLandmark.RIGHT_KNEE.value].x,
+                        landmarks[mp_pose.PoseLandmark.RIGHT_KNEE.value].y]
+                ankle_R = [landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value].x,
+                         landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value].y]
+                             
+                # Calculate angle               
+                angle_L = cal_angle(hip_L, knee_L, ankle_L)
+                angle_R = cal_angle(hip_R, knee_R, ankle_R)
+                
+                # Counter 
+                if angle_L > 160 and angle_R > 160:
+                    stage = "UP"
+                
+                if stage =='UP' and angle_L <= 90 and angle_R <= 90:
+                    stage="DOWN"
+                    counter5 +=1
+                    num +=1
+                    
+            except:
+                pass
+            
+            cv.rectangle(img, (0, 0), (380, 80), (245, 117, 16), -1)
+            
+            cv.putText(img, str(counter5),
+                        (10, 60),
+                        cv.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 2, cv.LINE_AA)
+            cv.putText(img, '/15',
+                        (70, 60),
+                        cv.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 0), 2, cv.LINE_AA)
+            
+            # Rep ans stage 
+            cv.putText(img, 'REP', (15, 12),
+                        cv.FONT_HERSHEY_COMPLEX, 0.5, (0, 0, 0), 1, cv.LINE_AA)
+            cv.putText(img, 'STAGE', (190, 12),
+                        cv.FONT_HERSHEY_COMPLEX, 0.5, (0, 0, 0), 1, cv.LINE_AA)
+            cv.putText(img, stage, (185, 60),
+                        cv.FONT_HERSHEY_COMPLEX, 2, (255, 255, 255), 2, cv.LINE_AA)
+#==================================================================================================================================== 
+
+#============================04 Side leg rise *10============================================================== 
+        if(num > 65 and num <= 75):
+            
+            h, w, c = overlayList[3].shape
+            img[0:h, 980:1280] = overlayList[3]
+            
+            if (num == 66):
+                cv.rectangle(img, (430, 0), (780, 80), (255, 255, 255), -1)
+                cv.putText(img,'Next Pose', (450,55), cv.FONT_HERSHEY_SIMPLEX,
+                                2, (78, 173, 228), 5, cv.LINE_AA)
+            try:
+                # Extract pose landmarks
+                landmarks = res.pose_landmarks.landmark
+
+                ankle_R = [landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value].x,
+                            landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value].y]
+                hip_R = [landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value].x,
+                          landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value].y]
+                ankle_L = [landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].x,
+                          landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].y]
+
+                # Calculate angle
+                angle_S = cal_angle(ankle_R, hip_R, ankle_L)
+
+                # Counter 
+                if angle_S < 30:
+                    stage = "DOWN"
+                    
+                if angle_S > 80 and stage == 'DOWN':
+                    stage = "UP"
+                    counter3 += 1
+                    num +=1
+            except:
+                pass
+            
+            # Show
+            cv.rectangle(img, (0, 0), (380, 80), (245, 117, 16), -1)
+            
+            cv.putText(img, str(counter3),
+                        (10, 60),
+                        cv.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 2, cv.LINE_AA)
+            cv.putText(img, '/10',
+                        (70, 60),
+                        cv.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 0), 2, cv.LINE_AA)
+            
+            # Rep ans stage 
+            cv.putText(img, 'REP', (15, 12),
+                        cv.FONT_HERSHEY_COMPLEX, 0.5, (0, 0, 0), 1, cv.LINE_AA)
+            cv.putText(img, 'STAGE', (190, 12),
+                        cv.FONT_HERSHEY_COMPLEX, 0.5, (0, 0, 0), 1, cv.LINE_AA)
+            cv.putText(img, stage, (185, 60),
+                        cv.FONT_HERSHEY_COMPLEX, 2, (255, 255, 255), 2, cv.LINE_AA)
+#==================================================================================================================================== 
+
+#============================05 Shoulder press * 15==========================================================================             
+        if(num > 75 and num <= 90):
+            
+            h, w, c = overlayList[4].shape
+            img[0:h, 980:1280] = overlayList[4]
+            
+            if (num == 76):
+                cv.rectangle(img, (430, 0), (780, 80), (255, 255, 255), -1)
+                cv.putText(img,'Next Pose', (450,55), cv.FONT_HERSHEY_SIMPLEX,
+                                2, (78, 173, 228), 5, cv.LINE_AA)
+            
+            try:
+                # Extract pose landmarks
+                landmarks = res.pose_landmarks.landmark
+
+                shoulder_L = [landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x,
+                            landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y]
+                elbow_L = [landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].x,
+                          landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].y]
+                wrist_L = [landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].x,
+                          landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].y]
+                
+                
+                shoulder_R = [landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].x,
+                            landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].y]
+                elbow_R = [landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW.value].x,
+                          landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW.value].y]
+                wrist_R = [landmarks[mp_pose.PoseLandmark.RIGHT_WRIST.value].x,
+                          landmarks[mp_pose.PoseLandmark.RIGHT_WRIST.value].y]
+                
+                
+                # Calculate angle
+                angle_L = cal_angle(shoulder_L, elbow_L, wrist_L)
+                angle_R = cal_angle(shoulder_R, elbow_R, wrist_R)
+
+                
+                # Counter 
+                if angle_L < 70 and angle_R < 70:
+                    stage = "DOWN"
+                    
+                if angle_L > 160 and stage == 'DOWN' and angle_R > 160:
+                    stage = "UP"
+                    counter4 += 1
+                    num+=1
+                
+            except:
+                pass
+            
+            # Show
+            cv.rectangle(img, (0, 0), (380, 80), (245, 117, 16), -1)
+            
+            cv.putText(img, str(counter4),
+                        (10, 60),
+                        cv.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 2, cv.LINE_AA)
+            cv.putText(img, '/15',
+                        (70, 60),
+                        cv.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 0), 2, cv.LINE_AA)
+            
+            # Rep ans stage 
+            cv.putText(img, 'REP', (15, 12),
+                        cv.FONT_HERSHEY_COMPLEX, 0.5, (0, 0, 0), 1, cv.LINE_AA)
+            cv.putText(img, 'STAGE', (190, 12),
+                        cv.FONT_HERSHEY_COMPLEX, 0.5, (0, 0, 0), 1, cv.LINE_AA)
+            cv.putText(img, stage, (185, 60),
+                        cv.FONT_HERSHEY_COMPLEX, 2, (255, 255, 255), 2, cv.LINE_AA)
+
+############################################################################################################################################################        
+        #image of press q to exis
+        if (num > 90):
+            img[240:480, 320:960] = overlayList[6]
+            
+################################################################################################################################################################
+        # Draw connection
+        mp_drawing.draw_landmarks(img, res.pose_landmarks, mp_pose.POSE_CONNECTIONS,
+                                mp_drawing.DrawingSpec(color = (250,120,70), thickness = 1, circle_radius = 2),
+                                mp_drawing.DrawingSpec(color = (250,70,225), thickness = 1, circle_radius = 2)
+                                )
+        
+        # Show program
+        cv.imshow('KeepFit', img)
+        
+        #press q to exis
+        if cv.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    cap.release()
+    cv.destroyAllWindows()
